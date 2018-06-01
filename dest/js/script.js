@@ -74,39 +74,6 @@ var UTILS = {
   }
 };
 
-var DelayLoader = function () {
-  function DelayLoader(args) {
-    _classCallCheck(this, DelayLoader);
-
-    this.args = typeof args !== 'undefined' ? args : {};
-    this.elmNodes = typeof this.args.elms !== 'undefined' ? this.args.elms : document.querySelectorAll('.delayload');
-    this.cls = typeof this.args.cls !== 'undefined' ? this.args.cls : 'loaded';
-    this.Init();
-  }
-
-  _createClass(DelayLoader, [{
-    key: 'Init',
-    value: function Init() {
-      var _this2 = this;
-
-      var _loop = function _loop(i) {
-        var elm = _this2.elmNodes[i];
-        var time = typeof elm.dataset.time !== 'undefined' ? elm.dataset.time : 300;
-
-        setTimeout(function () {
-          elm.classList.add(_this2.cls);
-        }, time);
-      };
-
-      for (var i = 0; i < this.elmNodes.length; i++) {
-        _loop(i);
-      }
-    }
-  }]);
-
-  return DelayLoader;
-}();
-
 var BgCanvas = function () {
   function BgCanvas(progressBar) {
     _classCallCheck(this, BgCanvas);
@@ -118,35 +85,36 @@ var BgCanvas = function () {
   _createClass(BgCanvas, [{
     key: 'InitPIXI',
     value: function InitPIXI() {
-      var _this3 = this;
-
-      this.CheckContentSize();
-      this.app = new PIXI.Application({
-        width: this.contentW,
-        height: this.contentH,
-        antialias: true
-      });
-      document.querySelector('.contentWrap').insertBefore(this.app.view, document.querySelector('.content'));
+      var _this2 = this;
 
       PIXI.loader.add('mainBg', 'img/sample3.jpg').add('sub1Bg', 'img/sample1.jpg').add('sub2Bg', 'img/sample2.jpg').add('sub3Bg', 'img/sample4.jpg').on('progress', function (loader, resource) {
-        _this3.progressBar.style.width = loader.progress + '%';
+        _this2.progressBar.style.width = loader.progress + '%';
       }).load(function (loader, resources) {
+        _this2.CheckContentSize();
+        _this2.app = new PIXI.Application({
+          width: _this2.contentW,
+          height: _this2.contentH,
+          antialias: true
+        });
+        _this2.app.renderer.plugins.interaction.autoPreventDefault = false;
+        _this2.app.renderer.view.style.touchAction = 'auto';
+        document.querySelector('.canvasInner').appendChild(_this2.app.view);
         document.querySelector('.loading').classList.add('hide');
         document.querySelector('.contentWrap').classList.add('loaded');
-        _this3.SetObjects(resources);
-        _this3.InitWave();
-        _this3.InitMask();
-        _this3.SetEvent();
+        _this2.SetObjects(resources);
+        _this2.InitWave();
+        _this2.InitMask();
+        _this2.SetEvent();
       });
     }
   }, {
     key: 'InitWave',
     value: function InitWave() {
-      var _this4 = this;
+      var _this3 = this;
 
       var centerX = Math.floor(this.contentW / 2);
-      var centerY = Math.floor(this.contentH / 2);
-      var r = 80;
+      var centerY = Math.floor(window.innerHeight / 2);
+      var r = 60;
       this.rectPos = {
         lt: {
           x: centerX - r,
@@ -167,37 +135,31 @@ var BgCanvas = function () {
       };
       this.waveArr = [];
       this.waveArr.push(this.WaveFactory({
-        color: 0x9000ff,
-        alpha: 0.2,
-        zoom: 2,
+        color: 0x00ffff,
         delay: 0
       }));
       this.waveArr.push(this.WaveFactory({
-        color: 0x0055ff,
-        alpha: 0.2,
-        zoom: 2,
+        color: 0x1d00ff,
         delay: 500
       }));
       this.waveArr.push(this.WaveFactory({
-        color: 0x00cbff,
-        alpha: 0.2,
-        zoom: 2,
+        color: 0xff00c7,
         delay: 1000
       }));
       this.waveCont = new PIXI.Container();
+      this.waveCont.x = centerX;
+      this.waveCont.y = centerY;
+      this.waveCont.pivot.x = centerX;
+      this.waveCont.pivot.y = centerY;
       this.contAlpha = 1;
-      this.waveCont.x = this.contentW / 2;
-      this.waveCont.y = this.contentH / 2;
-      this.waveCont.pivot.x = this.contentW / 2;
-      this.waveCont.pivot.y = this.contentH / 2;
 
       this.ticker = new PIXI.ticker.Ticker();
       this.ticker.fps = 60;
       this.ticker.add(function () {
-        for (var i = 0; i < _this4.waveArr.length; i++) {
-          _this4.DrawWave(_this4.waveArr[i]);
-          _this4.waveArr[i].seconds = _this4.waveArr[i].seconds + 0.009;
-          _this4.waveArr[i].t = _this4.waveArr[i].seconds * Math.PI;
+        for (var i = 0; i < _this3.waveArr.length; i++) {
+          _this3.DrawWave(_this3.waveArr[i]);
+          _this3.waveArr[i].seconds = _this3.waveArr[i].seconds + 0.009;
+          _this3.waveArr[i].t = _this3.waveArr[i].seconds * Math.PI;
         }
       });
       this.mainCont.addChild(this.waveCont);
@@ -210,10 +172,10 @@ var BgCanvas = function () {
         graphics: new PIXI.Graphics(),
         unit: 30,
         seconds: 0,
-        t: 1,
+        t: 0,
+        alpha: 0.2,
+        zoom: 2.5,
         color: args.color,
-        alpha: args.alpha,
-        zoom: args.zoom,
         delay: args.delay
       };
     }
@@ -239,88 +201,98 @@ var BgCanvas = function () {
       var calcEndPos = function calcEndPos(args) {
         return obj.unit * args.pt + args.axis;
       };
-      var basePt = calcBasePos({
-        pt: this.rectPos.lt.x,
-        cnt: this.rectPos.lt.x
-      });
       var startPos = {
         x: this.rectPos.lt.x + 20,
         y: calcEndPos({
-          pt: calcSinPt(basePt),
+          pt: calcSinPt(calcBasePos({
+            pt: this.rectPos.lt.x,
+            cnt: this.rectPos.lt.x
+          })),
           axis: this.rectPos.lt.y
         })
       };
 
       obj.graphics.moveTo(startPos.x, startPos.y);
 
-      for (var i = startPos.x; i <= this.rectPos.rt.x - sideLength; i += 10) {
-        var _basePt = calcBasePos({
+      var startPt = startPos.x;
+      var lastPt = this.rectPos.rt.x - sideLength;
+      for (var i = startPt; i <= lastPt; i += 10) {
+        var basePt = calcBasePos({
           pt: this.rectPos.lt.x,
           cnt: i
         });
         var endPos = {
           wave: calcEndPos({
-            pt: calcSinPt(_basePt),
+            pt: calcSinPt(basePt),
             axis: this.rectPos.lt.y
           }),
           axis: i
         };
+        if (i === startPt) {
+          startPos.y = endPos.wave;
+        }
         obj.graphics.lineTo(endPos.axis, endPos.wave);
       }
 
-      for (var _i = this.rectPos.rt.y + sideLength; _i <= this.rectPos.rb.y - sideLength; _i += 10) {
-        var _basePt2 = calcBasePos({
+      startPt = this.rectPos.rt.y + sideLength;
+      lastPt = this.rectPos.rb.y - sideLength;
+      for (var _i = startPt; _i <= lastPt; _i += 10) {
+        var _basePt = calcBasePos({
           pt: this.rectPos.rt.y,
           cnt: _i
         });
         var _endPos = {
           wave: calcEndPos({
-            pt: calcSinPt(_basePt2),
+            pt: calcSinPt(_basePt),
             axis: this.rectPos.rt.x
           }),
           axis: _i
         };
-        if (_i === this.rectPos.rt.y + sideLength) {
+        if (_i === startPt) {
           obj.graphics.quadraticCurveTo(this.rectPos.rt.x, this.rectPos.rt.y, _endPos.wave, _endPos.axis);
         }
         obj.graphics.lineTo(_endPos.wave, _endPos.axis);
       }
 
-      for (var _i2 = this.rectPos.rb.x - sideLength; _i2 >= this.rectPos.lb.x + sideLength; _i2 -= 10) {
-        var _basePt3 = calcBasePos({
+      startPt = this.rectPos.rb.x - sideLength;
+      lastPt = this.rectPos.lb.x + sideLength;
+      for (var _i2 = startPt; _i2 >= lastPt; _i2 -= 10) {
+        var _basePt2 = calcBasePos({
           pt: this.rectPos.rb.x,
           cnt: _i2
         });
         var _endPos2 = {
           wave: calcEndPos({
-            pt: calcSinPt(_basePt3),
+            pt: calcSinPt(_basePt2),
             axis: this.rectPos.rb.y
           }),
           axis: _i2
         };
-        if (_i2 === this.rectPos.rb.x - sideLength) {
+        if (_i2 === startPt) {
           obj.graphics.quadraticCurveTo(this.rectPos.rb.x, this.rectPos.rb.y, _endPos2.axis, _endPos2.wave);
         }
         obj.graphics.lineTo(_endPos2.axis, _endPos2.wave);
       }
 
-      for (var _i3 = this.rectPos.lb.y - sideLength; _i3 >= this.rectPos.lt.y + sideLength; _i3 -= 10) {
-        var _basePt4 = calcBasePos({
+      startPt = this.rectPos.lb.y - sideLength;
+      lastPt = this.rectPos.lt.y + sideLength;
+      for (var _i3 = startPt; _i3 >= lastPt; _i3 -= 10) {
+        var _basePt3 = calcBasePos({
           pt: this.rectPos.lb.y,
           cnt: _i3
         });
         var _endPos3 = {
           wave: calcEndPos({
-            pt: calcSinPt(_basePt4),
+            pt: calcSinPt(_basePt3),
             axis: this.rectPos.lb.x
           }),
           axis: _i3
         };
-        if (_i3 === this.rectPos.lb.y - sideLength) {
+        if (_i3 === startPt) {
           obj.graphics.quadraticCurveTo(this.rectPos.lb.x, this.rectPos.lb.y, _endPos3.wave, _endPos3.axis);
         }
         obj.graphics.lineTo(_endPos3.wave, _endPos3.axis);
-        if (_i3 <= this.rectPos.lt.y + sideLength) {
+        if (_i3 <= lastPt) {
           obj.graphics.quadraticCurveTo(this.rectPos.lt.x, this.rectPos.lt.y, startPos.x, startPos.y);
         }
       }
@@ -331,7 +303,7 @@ var BgCanvas = function () {
     key: 'CheckContentSize',
     value: function CheckContentSize() {
       this.contentW = window.innerWidth;
-      this.contentH = window.innerHeight;
+      this.contentH = screen.height;
     }
   }, {
     key: 'SetObjects',
@@ -380,7 +352,7 @@ var BgCanvas = function () {
       this.mask.x = 0;
       this.mask.y = 0;
       this.maskCont.x = this.contentW / 2;
-      this.maskCont.y = this.contentH / 2;
+      this.maskCont.y = window.innerHeight / 2;
       this.maskCont.pivot.x = this.contentW / 2;
       this.maskCont.pivot.y = this.contentH / 2;
       this.destScale = this.destStartScale = this.maskCont.scale.x;
@@ -392,45 +364,40 @@ var BgCanvas = function () {
   }, {
     key: 'SetEvent',
     value: function SetEvent() {
-      var _this5 = this;
+      var _this4 = this;
 
       window.addEventListener('resize', function () {
-        _this5.CheckContentSize();
-        _this5.app.renderer.resize(_this5.contentW, _this5.contentH);
-        _this5.InitImgs();
+        _this4.CheckContentSize();
+        console.log({
+          ch: _this4.contentH,
+          wh: window.innerHeight,
+          sh: screen.height
+        });
+        _this4.app.renderer.resize(_this4.contentW, _this4.contentH);
+        _this4.InitImgs();
       });
       window.addEventListener('scroll', function (e) {
         if (window.pageYOffset > 0) {
-          if (window.pageYOffset <= 0) {
-            _this5.contAlpha = 1;
-          } else {
-            var value = 1 - window.pageYOffset / 1000;
-            _this5.contAlpha = value < 0 ? 0 : value;
-          }
+          var value = 1 - window.pageYOffset / 1000;
+          _this4.contAlpha = value < 0 ? 0 : value;
         } else {
-          _this5.contAlpha = 1;
+          _this4.contAlpha = 1;
         }
 
-        if (window.pageYOffset > _this5.contentH * 2) {
-          _this5.app.view.classList.add('static');
-        } else {
-          _this5.app.view.classList.remove('static');
-        }
-
-        if (_this5.contAlpha > 0) {
-          _this5.destScale = window.pageYOffset / 300 + _this5.destStartScale;
-          _this5.dest2Scale = window.pageYOffset / 300 + _this5.dest2StartScale;
+        if (_this4.contAlpha > 0) {
+          _this4.destScale = window.pageYOffset / 300 + _this4.destStartScale;
+          _this4.dest2Scale = window.pageYOffset / 300 + _this4.dest2StartScale;
         }
       });
       this.app.ticker.add(function () {
-        _this5.maskCont.scale.x += (_this5.destScale - _this5.maskCont.scale.x) * 0.15;
-        _this5.maskCont.scale.y += (_this5.destScale - _this5.maskCont.scale.y) * 0.15;
-        _this5.waveCont.scale.x += (_this5.dest2Scale - _this5.waveCont.scale.x) * 0.15;
-        _this5.waveCont.scale.y += (_this5.dest2Scale - _this5.waveCont.scale.y) * 0.15;
-        _this5.waveCont.alpha += (_this5.contAlpha - _this5.waveCont.alpha) * 0.15;
-        _this5.maskCont.alpha += (_this5.contAlpha - _this5.maskCont.alpha) * 0.15;
-        if (_this5.contAlpha <= 0) {
-          _this5.destScale = 25;
+        _this4.maskCont.scale.x += (_this4.destScale - _this4.maskCont.scale.x) * 0.15;
+        _this4.maskCont.scale.y += (_this4.destScale - _this4.maskCont.scale.y) * 0.15;
+        _this4.waveCont.scale.x += (_this4.dest2Scale - _this4.waveCont.scale.x) * 0.15;
+        _this4.waveCont.scale.y += (_this4.dest2Scale - _this4.waveCont.scale.y) * 0.15;
+        _this4.waveCont.alpha += (_this4.contAlpha - _this4.waveCont.alpha) * 0.15;
+        _this4.maskCont.alpha += (_this4.contAlpha - _this4.maskCont.alpha) * 0.15;
+        if (_this4.contAlpha <= 0) {
+          _this4.destScale = 25;
         }
       });
     }

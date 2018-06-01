@@ -75,26 +75,6 @@ const UTILS = {
   }
 }
 
-class DelayLoader {
-  constructor (args) {
-    this.args = (typeof args !== 'undefined') ? args : {}
-    this.elmNodes = (typeof this.args.elms !== 'undefined') ? this.args.elms : document.querySelectorAll('.delayload')
-    this.cls = (typeof this.args.cls !== 'undefined') ? this.args.cls : 'loaded'
-    this.Init()
-  }
-
-  Init () {
-    for (let i = 0; i < this.elmNodes.length; i++) {
-      const elm = this.elmNodes[i]
-      const time = (typeof elm.dataset.time !== 'undefined') ? elm.dataset.time : 300
-
-      setTimeout(() => {
-        elm.classList.add(this.cls)
-      }, time)
-    }
-  }
-}
-
 class BgCanvas {
   /**
    * コンストラクタ
@@ -105,14 +85,6 @@ class BgCanvas {
   }
 
   InitPIXI () {
-    this.CheckContentSize()
-    this.app = new PIXI.Application({
-      width: this.contentW,
-      height: this.contentH,
-      antialias: true
-    })
-    document.querySelector('.contentWrap').insertBefore(this.app.view, document.querySelector('.content'))
-
     PIXI.loader
       .add('mainBg', 'img/sample3.jpg')
       .add('sub1Bg', 'img/sample1.jpg')
@@ -122,7 +94,15 @@ class BgCanvas {
         this.progressBar.style.width = loader.progress + '%'
       })
       .load((loader, resources) => {
-        // void new DelayLoader({ elm: document.querySelector('.delayload') })
+        this.CheckContentSize()
+        this.app = new PIXI.Application({
+          width: this.contentW,
+          height: this.contentH,
+          antialias: true
+        })
+        this.app.renderer.plugins.interaction.autoPreventDefault = false
+        this.app.renderer.view.style.touchAction = 'auto'
+        document.querySelector('.canvasInner').appendChild(this.app.view)
         document.querySelector('.loading').classList.add('hide')
         document.querySelector('.contentWrap').classList.add('loaded')
         this.SetObjects(resources)
@@ -134,8 +114,8 @@ class BgCanvas {
 
   InitWave () {
     const centerX = Math.floor(this.contentW / 2)
-    const centerY = Math.floor(this.contentH / 2)
-    const r = 80
+    const centerY = Math.floor(window.innerHeight / 2)
+    const r = 60
     this.rectPos = {
       lt: {
         x: centerX - r,
@@ -156,29 +136,23 @@ class BgCanvas {
     }
     this.waveArr = []
     this.waveArr.push(this.WaveFactory({
-      color: 0x9000ff,
-      alpha: 0.2,
-      zoom: 2,
+      color: 0x00ffff,
       delay: 0
     }))
     this.waveArr.push(this.WaveFactory({
-      color: 0x0055ff,
-      alpha: 0.2,
-      zoom: 2,
+      color: 0x1d00ff,
       delay: 500
     }))
     this.waveArr.push(this.WaveFactory({
-      color: 0x00cbff,
-      alpha: 0.2,
-      zoom: 2,
+      color: 0xff00c7,
       delay: 1000
     }))
     this.waveCont = new PIXI.Container()
+    this.waveCont.x = centerX
+    this.waveCont.y = centerY
+    this.waveCont.pivot.x = centerX
+    this.waveCont.pivot.y = centerY
     this.contAlpha = 1
-    this.waveCont.x = this.contentW / 2
-    this.waveCont.y = this.contentH / 2
-    this.waveCont.pivot.x = this.contentW / 2
-    this.waveCont.pivot.y = this.contentH / 2
 
     this.ticker = new PIXI.ticker.Ticker()
     this.ticker.fps = 60
@@ -198,10 +172,10 @@ class BgCanvas {
       graphics: new PIXI.Graphics(),
       unit: 30,
       seconds: 0,
-      t: 1,
+      t: 0,
+      alpha: 0.2,
+      zoom: 2.5,
       color: args.color,
-      alpha: args.alpha,
-      zoom: args.zoom,
       delay: args.delay
     }
   }
@@ -225,23 +199,26 @@ class BgCanvas {
     const calcEndPos = (args) => {
       return obj.unit * args.pt + args.axis
     }
-    const basePt = calcBasePos({
-      pt: this.rectPos.lt.x,
-      cnt: this.rectPos.lt.x
-    })
-    const startPos = {
+    let startPos = {
       x: this.rectPos.lt.x + 20,
       y: calcEndPos({
-        pt: calcSinPt(basePt),
+        pt: calcSinPt(
+          calcBasePos({
+            pt: this.rectPos.lt.x,
+            cnt: this.rectPos.lt.x
+          })
+        ),
         axis: this.rectPos.lt.y
       })
     }
 
-    // 開始位置
+    // Start
     obj.graphics.moveTo(startPos.x, startPos.y)
 
-    // 上辺
-    for (let i = startPos.x; i <= this.rectPos.rt.x - sideLength; i += 10) {
+    // Top
+    let startPt = startPos.x
+    let lastPt = this.rectPos.rt.x - sideLength
+    for (let i = startPt; i <= lastPt; i += 10) {
       const basePt = calcBasePos({
         pt: this.rectPos.lt.x,
         cnt: i
@@ -253,11 +230,16 @@ class BgCanvas {
         }),
         axis: i
       }
+      if (i === startPt) {
+        startPos.y = endPos.wave
+      }
       obj.graphics.lineTo(endPos.axis, endPos.wave)
     }
 
-    // 右辺
-    for (let i = this.rectPos.rt.y + sideLength; i <= this.rectPos.rb.y - sideLength; i += 10) {
+    // Right
+    startPt = this.rectPos.rt.y + sideLength
+    lastPt = this.rectPos.rb.y - sideLength
+    for (let i = startPt; i <= lastPt; i += 10) {
       const basePt = calcBasePos({
         pt: this.rectPos.rt.y,
         cnt: i
@@ -269,14 +251,16 @@ class BgCanvas {
         }),
         axis: i
       }
-      if (i === this.rectPos.rt.y + sideLength) {
+      if (i === startPt) {
         obj.graphics.quadraticCurveTo(this.rectPos.rt.x, this.rectPos.rt.y, endPos.wave, endPos.axis)
       }
       obj.graphics.lineTo(endPos.wave, endPos.axis)
     }
 
-    // 下辺
-    for (let i = this.rectPos.rb.x - sideLength; i >= this.rectPos.lb.x + sideLength; i -= 10) {
+    // Bottom
+    startPt = this.rectPos.rb.x - sideLength
+    lastPt = this.rectPos.lb.x + sideLength
+    for (let i = startPt; i >= lastPt; i -= 10) {
       const basePt = calcBasePos({
         pt: this.rectPos.rb.x,
         cnt: i
@@ -288,14 +272,16 @@ class BgCanvas {
         }),
         axis: i
       }
-      if (i === this.rectPos.rb.x - sideLength) {
+      if (i === startPt) {
         obj.graphics.quadraticCurveTo(this.rectPos.rb.x, this.rectPos.rb.y, endPos.axis, endPos.wave)
       }
       obj.graphics.lineTo(endPos.axis, endPos.wave)
     }
 
-    // 左辺
-    for (let i = this.rectPos.lb.y - sideLength; i >= this.rectPos.lt.y + sideLength; i -= 10) {
+    // Left
+    startPt = this.rectPos.lb.y - sideLength
+    lastPt = this.rectPos.lt.y + sideLength
+    for (let i = startPt; i >= lastPt; i -= 10) {
       const basePt = calcBasePos({
         pt: this.rectPos.lb.y,
         cnt: i
@@ -307,11 +293,11 @@ class BgCanvas {
         }),
         axis: i
       }
-      if (i === this.rectPos.lb.y - sideLength) {
+      if (i === startPt) {
         obj.graphics.quadraticCurveTo(this.rectPos.lb.x, this.rectPos.lb.y, endPos.wave, endPos.axis)
       }
       obj.graphics.lineTo(endPos.wave, endPos.axis)
-      if (i <= this.rectPos.lt.y + sideLength) {
+      if (i <= lastPt) {
         obj.graphics.quadraticCurveTo(this.rectPos.lt.x, this.rectPos.lt.y, startPos.x, startPos.y)
       }
     }
@@ -321,7 +307,7 @@ class BgCanvas {
 
   CheckContentSize () {
     this.contentW = window.innerWidth
-    this.contentH = window.innerHeight
+    this.contentH = screen.height
   }
 
   SetObjects (resources) {
@@ -367,7 +353,7 @@ class BgCanvas {
     this.mask.x = 0
     this.mask.y = 0
     this.maskCont.x = this.contentW / 2
-    this.maskCont.y = this.contentH / 2
+    this.maskCont.y = window.innerHeight / 2
     this.maskCont.pivot.x = this.contentW / 2
     this.maskCont.pivot.y = this.contentH / 2
     this.destScale = this.destStartScale = this.maskCont.scale.x
@@ -380,25 +366,20 @@ class BgCanvas {
   SetEvent () {
     window.addEventListener('resize', () => {
       this.CheckContentSize()
+      console.log({
+        ch: this.contentH,
+        wh: window.innerHeight,
+        sh: screen.height
+      })
       this.app.renderer.resize(this.contentW, this.contentH)
       this.InitImgs()
     })
     window.addEventListener('scroll', (e) => {
       if (window.pageYOffset > 0) {
-        if (window.pageYOffset <= 0) {
-          this.contAlpha = 1
-        } else {
-          const value = 1 - window.pageYOffset / 1000
-          this.contAlpha = (value < 0) ? 0 : value
-        }
+        const value = 1 - window.pageYOffset / 1000
+        this.contAlpha = (value < 0) ? 0 : value
       } else {
         this.contAlpha = 1
-      }
-
-      if (window.pageYOffset > this.contentH * 2) {
-        this.app.view.classList.add('static')
-      } else {
-        this.app.view.classList.remove('static')
       }
 
       if (this.contAlpha > 0) {
